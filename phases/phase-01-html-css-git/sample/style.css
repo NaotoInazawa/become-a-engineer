@@ -1,0 +1,65 @@
+/* ===== 全体 ===== */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.7;
+  color: #333;
+  background-color: #f5f7fa;
+}
+
+/* ===== ヘッダー ===== */
+.header {
+  padding: 48px 16px;
+  text-align: center;
+  color: #fff;
+  background-color: #2b6cb0;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 2rem;
+}
+
+.subtitle {
+  margin: 8px 0 0;
+  opacity: 0.9;
+}
+
+/* ===== メイン(Flexboxでカードを横に並べる) ===== */
+.container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  max-width: 960px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+.card {
+  flex: 1 1 280px; /* 最小280pxで、余白があれば広がる */
+  padding: 24px;
+  background-color: #fff;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  color: #2b6cb0;
+}
+
+a {
+  color: #2b6cb0;
+}
+
+/* ===== フッター ===== */
+.footer {
+  padding: 24px;
+  text-align: center;
+  color: #777;
+}

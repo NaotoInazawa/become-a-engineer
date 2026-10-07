@@ -1,0 +1,23 @@
+# systemd のサービス定義ファイル
+# 配置先: /etc/systemd/system/todo.service
+#
+# 「YOUR_USER」を、VMにログインしているユーザー名に書き換えてください(whoami で確認できます)
+
+[Unit]
+Description=Todo App (gunicorn)
+# ネットワークが使えるようになってから起動する
+After=network.target
+
+[Service]
+User=YOUR_USER
+WorkingDirectory=/home/YOUR_USER/my-todo-app
+# .env から SECRET_KEY などの環境変数を読み込む
+EnvironmentFile=/home/YOUR_USER/my-todo-app/.env
+# 127.0.0.1 にだけ bind するので、外部から直接 8000番には接続できない(必ず nginx を経由する)
+ExecStart=/home/YOUR_USER/my-todo-app/.venv/bin/gunicorn --workers 2 --bind 127.0.0.1:8000 app:app
+# 異常終了したら自動で再起動する
+Restart=always
+
+[Install]
+# サーバー起動時に自動で起動する
+WantedBy=multi-user.target

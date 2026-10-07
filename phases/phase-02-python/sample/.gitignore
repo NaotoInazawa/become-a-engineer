@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# このアプリが作るデータファイル
+todos.json
+
+# OS・エディタ
+.DS_Store
+.vscode/

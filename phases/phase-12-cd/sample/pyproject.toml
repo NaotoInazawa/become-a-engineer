@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+# 1行の最大文字数
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: 書き方(pycodestyle)、F: バグの可能性(pyflakes)、I: import の並び順、B: よくあるバグ
+select = ["E", "W", "F", "I", "B"]

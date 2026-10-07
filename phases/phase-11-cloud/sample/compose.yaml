@@ -1,0 +1,41 @@
+# Docker Compose の設定
+# 起動: docker compose up --build
+# 停止: docker compose down
+#
+# 2つのコンテナ(web: Flaskアプリ、db: PostgreSQL)をまとめて起動する
+
+services:
+  web:
+    build: .
+    ports:
+      # 「ホストPCの8000番」を「コンテナの8000番」につなぐ
+      - "8000:8000"
+    env_file:
+      # SECRET_KEY などを .env から読み込む
+      - .env
+    environment:
+      # 接続先のホスト名は、サービス名の「db」で指定できる
+      DATABASE_URL: postgresql+psycopg://todo:todo@db:5432/todo
+    depends_on:
+      db:
+        # DBが接続を受け付けられる状態になってから web を起動する
+        condition: service_healthy
+
+  db:
+    image: postgres:16
+    environment:
+      # 開発用の値。本番では、推測されにくいパスワードを秘密情報として管理する
+      POSTGRES_USER: todo
+      POSTGRES_PASSWORD: todo
+      POSTGRES_DB: todo
+    volumes:
+      # コンテナを削除してもデータが残るよう、ボリュームに保存する
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todo -d todo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:

@@ -1,0 +1,85 @@
+# CD(継続的デプロイ)のワークフロー
+# main にマージされたら、テスト → イメージのビルド → Cloud Run へのデプロイ → 動作確認 を自動で行う
+#
+# 事前に GitHub の Settings → Secrets and variables → Actions → Variables に以下を登録する
+#   GCP_PROJECT_ID   : GCPのプロジェクトID
+#   GCP_REGION       : asia-northeast1
+#   GCP_WIF_PROVIDER : Workload Identity プロバイダのリソース名
+#   GCP_DEPLOY_SA    : デプロイ用サービスアカウントのメールアドレス
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+# 同時に複数のデプロイが走らないようにする
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  # 1. まず CI(ci.yml)を実行する
+  test:
+    uses: ./.github/workflows/ci.yml
+
+  # 2. テストが成功したらデプロイする
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    # GitHub の Environments 機能(承認フローなどを設定できる)
+    environment: production
+
+    # OIDC で GCP に認証するため、IDトークンの発行を許可する
+    permissions:
+      contents: read
+      id-token: write
+
+    env:
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/todo/web:${{ github.sha }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # アクセスキーを使わず、GitHub が発行する一時的なトークンで GCP に認証する
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      # コミットハッシュをタグにすることで、どのコードがデプロイされたか追えるようにする
+      - name: Build and push image
+        run: |
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy todo \
+            --image="$IMAGE" \
+            --region="${{ vars.GCP_REGION }}" \
+            --quiet
+
+      # デプロイ後に /health を確認する。失敗したらワークフローを失敗させる
+      - name: Health check
+        run: |
+          URL=$(gcloud run services describe todo --region="${{ vars.GCP_REGION }}" --format='value(status.url)')
+          for i in 1 2 3 4 5; do
+            if curl --fail --silent "$URL/health"; then
+              echo ""
+              echo "Health check passed: $URL"
+              exit 0
+            fi
+            echo "Retry $i..."
+            sleep 10
+          done
+          echo "Health check failed"
+          exit 1

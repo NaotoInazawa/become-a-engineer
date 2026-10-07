@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Todoアプリ{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="header">
+    <a href="{{ url_for('todos.index') }}" class="logo">Todoアプリ</a>
+    <nav class="nav">
+      {% if current_user.is_authenticated %}
+        <a href="{{ url_for('todos.index') }}">HTML版</a>
+        <a href="{{ url_for('todos.spa') }}">JS版</a>
+        <span>{{ current_user.username }} さん</span>
+        <form action="{{ url_for('auth.logout') }}" method="post" class="inline">
+          <button type="submit" class="secondary">ログアウト</button>
+        </form>
+      {% else %}
+        <a href="{{ url_for('auth.login') }}">ログイン</a>
+        <a href="{{ url_for('auth.register') }}">新規登録</a>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="container">
+    {% for message in get_flashed_messages() %}
+      <p class="flash">{{ message }}</p>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{% extends "base.html" %}
+
+{% block title %}アクセスできません{% endblock %}
+
+{% block content %}
+<h1>403 アクセスできません</h1>
+<p>このTodoを操作する権限がありません。</p>
+<p><a href="{{ url_for('todos.index') }}">一覧に戻る</a></p>
+{% endblock %}

@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+
+{% block title %}新規登録{% endblock %}
+
+{% block content %}
+<h1>新規登録</h1>
+<form action="{{ url_for('register') }}" method="post" class="stack-form">
+  <input type="text" name="username" placeholder="ユーザー名" maxlength="50" required>
+  <input type="password" name="password" placeholder="パスワード" required>
+  <button type="submit">登録</button>
+</form>
+<p>登録済みの方は <a href="{{ url_for('login') }}">ログイン</a></p>
+{% endblock %}

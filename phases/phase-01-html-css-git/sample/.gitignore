@@ -1,0 +1,4 @@
+# OSやエディタが自動で作るファイル
+.DS_Store
+Thumbs.db
+.vscode/

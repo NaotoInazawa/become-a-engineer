@@ -1,0 +1,4 @@
+# 開発・テストでだけ使うライブラリ(本番サーバーにはインストール不要)
+-r requirements.txt
+pytest>=8,<10
+pytest-cov>=5,<8

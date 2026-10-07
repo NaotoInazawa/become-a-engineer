@@ -1,0 +1,13 @@
+# 教材リポジトリ自体の除外設定
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+instance/
+*.db
+.env
+.DS_Store
+.vscode/

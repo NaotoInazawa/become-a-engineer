@@ -1,0 +1,5 @@
+# 開発・テストでだけ使うライブラリ(本番にはインストール不要)
+-r requirements.txt
+pytest>=8,<10
+pytest-cov>=5,<8
+ruff>=0.6

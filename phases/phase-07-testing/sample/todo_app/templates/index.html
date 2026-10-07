@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Todo一覧</h1>
+
+<form action="{{ url_for('todos.create') }}" method="post" class="add-form">
+  <input type="text" name="title" placeholder="やることを入力" maxlength="100" required>
+  <button type="submit">追加</button>
+</form>
+
+{% if todos %}
+<ul class="todo-list">
+  {% for todo in todos %}
+  <li class="todo-item {% if todo.done %}done{% endif %}">
+    <form action="{{ url_for('todos.toggle', todo_id=todo.id) }}" method="post" class="inline">
+      <button type="submit" class="secondary">{{ "戻す" if todo.done else "完了" }}</button>
+    </form>
+    <span class="title">{{ todo.title }}</span>
+    <a href="{{ url_for('todos.edit', todo_id=todo.id) }}">編集</a>
+    <form action="{{ url_for('todos.delete', todo_id=todo.id) }}" method="post" class="inline">
+      <button type="submit" class="danger">削除</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="empty">Todoはまだありません。</p>
+{% endif %}
+{% endblock %}
