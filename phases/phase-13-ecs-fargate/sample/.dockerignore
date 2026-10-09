@@ -1,0 +1,10 @@
+# イメージに含めないファイル(サイズ削減・秘密情報の混入防止)
+.git
+.venv
+__pycache__/
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+instance/
+.env

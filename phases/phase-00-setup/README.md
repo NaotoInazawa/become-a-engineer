@@ -114,26 +114,46 @@ cd ..                     # 1つ上へ移動
 
 Git などの開発用ツールが入った、Apple公式のパッケージです。
 
+まず、すでに入っているか確認します。
+
+```bash
+xcode-select -p
+```
+
+- **パス(例:`/Library/Developer/CommandLineTools`)が表示された**:インストール済みです。Step 5に進んでください
+- **`xcode-select: error: unable to get active developer directory` と表示された**:まだ入っていません。以下でインストールします
+
 ```bash
 xcode-select --install
 ```
 
-ダイアログが表示されたら「インストール」を押します(すでにインストール済みの場合はその旨が表示されます)。
+ダイアログが表示されたら「インストール」を押します。
 
 ### Step 5. Homebrew をインストールする
 
 **Homebrew** は、Mac に開発ツールをコマンドでインストールするための道具(パッケージマネージャー)です。
 
+まず、すでに入っているか確認します。
+
+```bash
+brew --version
+```
+
+`Homebrew 4.x.x` のように表示されれば、インストール済みです。Step 6に進んでください。
+`zsh: command not found: brew` と表示された場合は、以下の手順でインストールします。
+
 1. [Homebrew の公式サイト](https://brew.sh/ja/) に表示されているインストールコマンドをコピーし、ターミナルで実行する
 2. Macのログインパスワードを求められたら入力する(入力中の文字は表示されません)
 3. **インストールの最後に「Next steps」として表示されるコマンドを、必ずそのまま実行する**(`brew` コマンドが使えるように PATH を設定するコマンドです)
-4. ターミナルを開き直して確認する
+4. ターミナルを開き直し、もう一度確認する
 
 ```bash
 brew --version   # Homebrew 4.x.x などと表示されればOK
 ```
 
 ### Step 6. 開発ツールをインストールする
+
+すでに入っているツールがあっても大丈夫です。`brew install` はインストール済みのものに対して実行しても壊れることはなく、「すでに最新です」のように表示されて終わるだけです。
 
 ```bash
 brew install python@3.12 git gh
@@ -153,14 +173,25 @@ brew install --cask visual-studio-code google-chrome
 ```bash
 python3.12 --version   # Python 3.12.x と表示されればOK
 git --version          # git version 2.x.x と表示されればOK
+gh --version           # gh version 2.x.x と表示されればOK
 ```
+
+Visual Studio CodeとGoogle Chromeは、Spotlight(`command + space`)でアプリ名を検索し、候補に出てくればインストール済みです。
 
 > Macには最初から `python3` が入っていることがありますが、古いバージョンの場合があります。この教材では、仮想環境を作るときに **必ず `python3.12`** を使います(フェーズ2)。
 
 ### Step 7. VS Code の設定
 
-1. VS Code を起動し、拡張機能から **Japanese Language Pack** と **Python** をインストールする
-2. `command + shift + P` でコマンドパレットを開き、「**Shell Command: Install 'code' command in PATH**」を実行する
+1. VS Code を起動し、左側の拡張機能タブを開く。検索欄に **Japanese Language Pack** と **Python** をそれぞれ入力する。ボタンが「Install」になっていればまだ未インストールなのでクリックし、すでに「アンインストール」や歯車アイコンになっていればインストール済みです
+2. ターミナルで次を実行し、`code` コマンドがすでに使えるか確認する
+
+```bash
+code --version
+```
+
+バージョンが表示されれば設定済みです。3に進んでください。
+`zsh: command not found: code` と表示された場合は、`command + shift + P` でコマンドパレットを開き、「**Shell Command: Install 'code' command in PATH**」を実行してから、もう一度 `code --version` を確認します。
+
 3. ターミナルで以下を実行し、VS Code が開くことを確認する
 
 ```bash

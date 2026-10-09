@@ -66,10 +66,22 @@ git switch -c feature/ci
 ### Step 1. ruff を導入する
 
 ```bash
-pip install ruff
+uv pip install ruff
 ```
 
-`pyproject.toml` に ruff の設定を追加し(例:[sample/pyproject.toml](sample/pyproject.toml))、`requirements-dev.txt` に `ruff` を追加します。
+`pyproject.toml` に ruff の設定を追加します(例:[sample/pyproject.toml](sample/pyproject.toml))。
+
+```toml
+[tool.ruff]
+line-length = 100        # 1行の最大文字数
+target-version = "py312"
+
+[tool.ruff.lint]
+# E/W: 書き方(pycodestyle)、F: バグの可能性(pyflakes)、I: importの並び順、B: よくあるバグ
+select = ["E", "W", "F", "I", "B"]
+```
+
+あわせて `requirements-dev.txt` に `ruff` を追加します。
 
 ```bash
 ruff check .            # 問題点を表示
@@ -81,13 +93,100 @@ ruff format .           # 書き方をそろえる
 
 ### Step 2. テストで使うDBを環境変数で切り替える
 
-CIでは PostgreSQL でテストするため、`tests/conftest.py` を、環境変数 `TEST_DATABASE_URL` があればそのDBを使うように変更します(例:[sample/tests/conftest.py](sample/tests/conftest.py))。
+CIでは PostgreSQL でテストするため、`tests/conftest.py` の `app` フィクスチャを変更します。今まで固定で `"sqlite://"` を指定していた部分を、環境変数があればそちらを使うように書き換えます。
+
+```python
+import os
+
+# 変更前
+"SQLALCHEMY_DATABASE_URI": "sqlite://",
+
+# 変更後
+"SQLALCHEMY_DATABASE_URI": os.environ.get("TEST_DATABASE_URL", "sqlite://"),
+```
+
+これは2-7(フェーズ9)で説明した「環境変数があればそれを使い、なければ従来通り」というパターンと同じ考え方です。CI上では環境変数 `TEST_DATABASE_URL` を設定してPostgreSQLに接続し、自分のPCではこれまで通りメモリ上のSQLiteを使います(完成例:[sample/tests/conftest.py](sample/tests/conftest.py))。
 
 ### Step 3. ワークフローを作成する
 
-リポジトリのルートに `.github/workflows/ci.yml` を作成します。完成例:[sample/.github/workflows/ci.yml](sample/.github/workflows/ci.yml)
+リポジトリのルートに `.github/workflows/ci.yml` を作成します。ワークフローファイルは **YAML** という、インデント(字下げ)で構造を表す記法で書きます。
 
 > **注意**:ワークフローファイルは、**リポジトリのルート直下** の `.github/workflows/` に置かないと動きません。この教材リポジトリの `sample/` の中にあるファイルは、参考用のため実行されません。
+
+まず、「いつ」「どこで」実行するかを書きます。
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+```
+
+- `name`:Actionsタブに表示されるワークフローの名前です
+- `on`:トリガー(2-2)。`main`へのpushと、プルリクエストが作られた/更新されたときに実行します
+- `jobs`:このワークフローが行うジョブ(2-2)の一覧です。ここでは`test`という名前のジョブを1つだけ定義します
+- `runs-on`:どんなランナー(2-3)で実行するかです。`ubuntu-latest`は、GitHubが用意する最新のUbuntu環境を意味します
+
+次に、テスト用のPostgreSQLを**サービスコンテナ**(2-4)として起動する設定を追加します。
+
+```yaml
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: todo
+          POSTGRES_PASSWORD: todo
+          POSTGRES_DB: todo_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U todo -d todo_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+```
+
+`services`の中に書いたコンテナは、ジョブの実行中だけ裏側で起動します。`options`のヘルスチェックは、フェーズ9の`compose.yaml`で使った`healthcheck`と同じ役割で、「PostgreSQLが接続を受け付けられる状態になるまで待つ」ための設定です。
+
+最後に、実際の作業を**ステップ**(2-2)として並べます。
+
+```yaml
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint (ruff)
+        run: |
+          ruff check .
+          ruff format --check .
+
+      - name: Test (pytest)
+        env:
+          TEST_DATABASE_URL: postgresql+psycopg://todo:todo@localhost:5432/todo_test
+        run: pytest --cov=todo_app --cov-report=term-missing
+```
+
+- `uses`:他の人(ここではGitHub公式)が作った、再利用可能な処理部品を呼び出します。`actions/checkout`はリポジトリのコードを取得する部品、`actions/setup-python`はPythonを準備する部品です
+- `run`:シェルコマンドをそのまま実行します。手元のターミナルで打っていたコマンドと同じものです
+- `env`:そのステップだけで使う環境変数です。`TEST_DATABASE_URL`に、サービスコンテナとして起動したPostgreSQLへの接続先を指定しています
+
+完成例:[sample/.github/workflows/ci.yml](sample/.github/workflows/ci.yml)
 
 ### Step 4. push して、Actions タブでログを読む
 

@@ -12,7 +12,7 @@
 
 ### 2-1. データベースとテーブル
 
-データベースは、データを **テーブル**(表)の形で保存します。
+データベースは、データを **テーブル**(表)の形で保存します。Excelのような表をイメージすると近いですが、列ごとに入れられるデータの種類(型)が厳密に決まっている点が違います。
 
 **todo テーブル**
 
@@ -29,7 +29,7 @@
 
 ### 2-2. SQL
 
-データベースを操作するための言語が **SQL** です。CRUDの4つの操作に対応します。
+データベースを操作するための言語が **SQL** です。日本語や英語のような「人間の言葉」ではなく、データベースに「お願いする」ための共通言語だと考えてください。CRUDの4つの操作に対応します。
 
 | 操作 | SQL | 例 |
 | --- | --- | --- |
@@ -57,11 +57,11 @@ sequenceDiagram
     F-->>B: 200 OK + HTML
 ```
 
-> SQLiteはファイル1つで動く軽量なデータベースで、アプリと同じプロセスの中で動きます。フェーズ9では、独立したサーバーとして動くPostgreSQLに切り替えます。
+> SQLiteはファイル1つで動く軽量なデータベースで、アプリと同じ **プロセス**(実行中のプログラムの1つの単位)の中で動きます。フェーズ9では、独立したサーバーとして動くPostgreSQLに切り替えます。
 
 ### 2-4. ORM(SQLAlchemy)
 
-SQLを文字列で書く代わりに、**Pythonのクラスでテーブルを表し、メソッドで操作する** 仕組みが **ORM** です。
+SQLを文字列で書く代わりに、**Pythonのクラスでテーブルを表し、メソッドで操作する** 仕組みが **ORM** です。SQLという「外国語」を知らなくても、母国語(Python)で指示を出せば、裏で通訳者がSQLに翻訳して伝えてくれるようなものだとイメージしてください。
 
 ```python
 class Todo(db.Model):          # todo テーブル
@@ -71,6 +71,10 @@ class Todo(db.Model):          # todo テーブル
 db.session.add(Todo(title="牛乳"))   # → INSERT INTO todo (title) VALUES ('牛乳')
 db.session.commit()
 ```
+
+- `primary_key=True`:その列が **主キー** であることを示します
+- `nullable=False`:その列を空にはできない(必ず値が必要)という意味です
+- `db.session.add(...)` は変更を一時的に用意するだけで、`db.session.commit()`(**commit**=「確定する」という意味)を呼ぶまでは実際にはデータベースに保存されません
 
 ORMは魔法ではなく、**裏でSQLを作って送っている** だけです。ハンズオンでは、実際に送られているSQLを確認します。
 
@@ -84,13 +88,13 @@ sql = f"SELECT * FROM todo WHERE title = '{title}'"
 # title に「' OR '1'='1」と入力されると、全件が取得されてしまう
 ```
 
-ORMやプレースホルダー(`?`)を使うと、入力値は自動で安全に処理されます。
+ORMやプレースホルダー(`?`)を使うと、入力値は自動で安全に処理されます。プレースホルダーは、データベース側に「ここに入る値はSQLの一部ではなく、ただのデータとして扱ってください」と伝える仕組みです。
 
 ## 3. ハンズオン
 
 ### Step 1. SQLを手で実行してみる
 
-SQLite のコマンドラインツール `sqlite3` を使います(Macには最初からインストールされています)。
+SQLite のコマンドラインツール `sqlite3` を使います(Macには最初からインストールされています)。ORM(2-4)を使う前に、まず生のSQLでテーブル操作を体験しておくと、後でORMが裏側で何をしているかを理解しやすくなります。
 
 ```bash
 sqlite3 practice.db
@@ -104,9 +108,11 @@ sqlite3 practice.db
 
 ### Step 2. Flask-SQLAlchemy をインストールする
 
+**Flask-SQLAlchemy** は、PythonからSQLiteなどのデータベースを操作するためのORMライブラリです。Flask本体と同じく外部のライブラリなので、仮想環境にインストールします。
+
 ```bash
-pip install flask-sqlalchemy
-pip freeze | grep -iE "flask|sqlalchemy" > requirements.txt
+uv pip install flask-sqlalchemy
+uv pip freeze | grep -iE "flask|sqlalchemy" > requirements.txt
 ```
 
 ### Step 3. モデルを定義する
@@ -121,7 +127,7 @@ db = SQLAlchemy(app)
 
 ### Step 4. 一覧・追加・削除をDB版に書き換える
 
-フェーズ3でリストを操作していた部分を、データベースの操作に置き換えます。
+フェーズ3でリストを操作していた部分を、データベースの操作に置き換えます。見た目の操作(追加・削除など)は変わりませんが、裏側で起きていることが「メモリ上のリストを書き換える」から「データベースに命令を送る」に変わります。
 
 | フェーズ3(リスト) | フェーズ4(データベース) |
 | --- | --- |
@@ -140,11 +146,33 @@ flask --app app run --debug --port 5001
 
 ブラウザでTodoを追加し、ターミナルを確認します。
 
-**期待される結果**:`INSERT INTO todo (title, done, created_at) VALUES (?, ?, ?)` のようなSQLが表示される。`?` の部分に入力値が安全に渡されていることも確認しましょう。
+**期待される結果**:`INSERT INTO todo (title, done, created_at) VALUES (?, ?, ?)` のようなSQLが表示される。`?` の部分に入力値が安全に渡されていることも確認しましょう。ORMが裏でどんなSQLを組み立てているかを実際に見ることで、2-4で説明した「ORMは魔法ではない」ということを体感できます。
 
 ### Step 6. 完了フラグの更新を実装する
 
-`POST /todos/<id>/toggle` で `done` を切り替えます。ターミナルに `UPDATE` 文が出ることを確認します。
+完了・未完了を切り替えるルートを追加します。`done` を反転させて保存するだけなので、これまでの編集・削除と同じ形で書けます。
+
+```python
+@app.route("/todos/<int:todo_id>/toggle", methods=["POST"])
+def toggle(todo_id):
+    """完了・未完了の切り替え:UPDATE todo SET done = ... WHERE id = ..."""
+    todo = db.get_or_404(Todo, todo_id)
+    todo.done = not todo.done   # True/False を反転させる
+    db.session.commit()
+    return redirect(url_for("index"))
+```
+
+`index.html` の一覧にも、切り替え用のボタンを追加します。削除ボタンと同じく `<form>` + `POST` で実装します(GETのリンクにすると、リンクを開いただけで状態が変わってしまうため)。
+
+```html
+<form action="{{ url_for('toggle', todo_id=todo.id) }}" method="post" class="inline">
+  <button type="submit">{{ "戻す" if todo.done else "完了" }}</button>
+</form>
+```
+
+完成例:[sample/app.py](sample/app.py)、[sample/templates/index.html](sample/templates/index.html)
+
+**期待される結果**:一覧で「完了」ボタンを押すと表示が切り替わり、ターミナルに `UPDATE` 文が出る。
 
 ### Step 7. 再起動してもデータが残ることを確認する
 
@@ -160,7 +188,7 @@ sqlite3 instance/todo.db "SELECT * FROM todo;"
 
 ### Step 8. コミットしてpushする
 
-データベースファイルは各自の環境で作られるデータなので、Gitで管理しません。`.gitignore` に追加してからコミットします。
+データベースファイルは各自の環境で作られるデータなので、Gitで管理しません。実行するたびに内容が変わるファイルをGitに含めると、他の人と作業したときに余計な差分や衝突の原因になります。`.gitignore` に追加してからコミットします。
 
 ```bash
 echo "instance/" >> .gitignore

@@ -12,6 +12,8 @@
 
 ### 2-1. 静的サイトと動的サイト
 
+静的サイトが「あらかじめ印刷しておいたチラシを配る」ようなものだとすると、動的サイトは「来た人に合わせて、その場で手紙を書いて渡す」ようなものです。
+
 | | 静的サイト(フェーズ1) | 動的サイト(このフェーズ) |
 | --- | --- | --- |
 | HTML | あらかじめ置いておく | リクエストのたびにプログラムが作る |
@@ -20,8 +22,8 @@
 
 ### 2-2. Webフレームワークとルーティング
 
-**Flask** は、Webアプリを作るための部品をまとめた **Webフレームワーク** です。
-URLと、それを処理するPythonの関数を対応付けることを **ルーティング** と呼びます。
+**Flask** は、Webアプリを作るための部品をまとめた **Webフレームワーク** です。家を建てるときに木材を1本ずつ切り出すのではなく、柱や壁などの部品があらかじめ用意された状態から組み立てられるようなものだとイメージしてください。
+URLと、それを処理するPythonの関数を対応付けることを **ルーティング** と呼びます(「このURLに来た人は、この係の人が対応する」という受付の役割分担のようなものです)。
 
 ```python
 @app.route("/")          # 「/」にアクセスが来たら
@@ -43,7 +45,9 @@ sequenceDiagram
 
 ### 2-3. テンプレートエンジン(Jinja2)
 
-HTMLの中にPythonのデータを埋め込む仕組みです。`{{ }}` で値を表示し、`{% %}` で繰り返しや条件分岐を書きます。
+**テンプレートエンジン** は、HTMLの「ひな形」にプログラムのデータを流し込んで、完成したHTMLを作る仕組みです。宛名だけを1件ずつ差し替えて同じ文面のはがきを量産する「差し込み印刷」に近いイメージです。Flaskでは **Jinja2** というテンプレートエンジンを使います。
+
+`{{ }}` で値を表示し、`{% %}` で繰り返しや条件分岐を書きます。
 
 ```html
 {% for todo in todos %}
@@ -51,7 +55,9 @@ HTMLの中にPythonのデータを埋め込む仕組みです。`{{ }}` で値�
 {% endfor %}
 ```
 
-`base.html` に共通部分(ヘッダーなど)を書き、各ページは `{% extends "base.html" %}` で継承します。
+> `{{ }}`(波カッコ2つ)は「値を表示する」、`{% %}`(波カッコ+パーセント)は「繰り返しや条件分岐などの処理を書く」ためのものです。見た目が似ていて混同しやすいので、「ただ表示したいだけなら `{{ }}`」と覚えておきましょう。
+
+`base.html` に共通部分(ヘッダーなど)を書き、各ページは `{% extends "base.html" %}` でその内容を引き継ぎます(**継承**:共通のひな形を再利用し、ページごとに違う部分だけを書き足す仕組みです)。
 
 ### 2-4. フォーム送信とPRGパターン
 
@@ -66,8 +72,8 @@ sequenceDiagram
     F-->>B: 200 OK + 一覧のHTML
 ```
 
-POSTの後にそのままHTMLを返すと、ブラウザを再読み込みしたときに **同じPOSTが再送信** され、Todoが二重に登録されます。
-そのため「**P**OST → **R**edirect → **G**ET」の順にする **PRGパターン** を使います。
+POSTの後にそのままHTMLを返すと、ブラウザを再読み込みしたときに **同じPOSTが再送信** され、Todoが二重に登録されます。ネット通販で「注文する」ボタンを押した直後に画面を再読み込みして、同じ注文が2回通ってしまうようなものです。
+そのため「**P**OST → **R**edirect → **G**ET」の順にする **PRGパターン** を使います。POSTの処理が終わったら、いきなりHTMLを返すのではなく「一覧ページへ移動してください」という **リダイレクト**(別のURLへ移動するよう指示するレスポンス)を返します。ブラウザはそのURLへ改めてGETでアクセスし直すので、再読み込みしても再送信されるのはGETだけになります。
 
 ### 2-5. 開発サーバーとポート
 
@@ -90,12 +96,16 @@ Running on http://127.0.0.1:5001
 
 ### Step 1. Flaskをインストールして Hello World
 
+Flaskは標準のPythonには含まれていない **外部のライブラリ** です。使うには、仮想環境の中にインストールする必要があります。
+
 ```bash
 cd ~/dev/my-todo-app
 source .venv/bin/activate
-pip install flask
-pip freeze | grep -i flask > requirements.txt   # 使っているライブラリを記録
+uv pip install flask
+uv pip freeze | grep -i flask > requirements.txt   # 使っているライブラリの一覧を記録
 ```
+
+`requirements.txt` は「このアプリを動かすために必要なライブラリの一覧表」です。これをGitで管理しておくと、別のPCでも `pip install -r requirements.txt`(または `uv pip install -r requirements.txt`)を実行するだけで同じ環境を再現できます。
 
 `app.py` を作成します。
 
@@ -112,6 +122,8 @@ def index():
 ```bash
 flask --app app run --debug --port 5001
 ```
+
+`--app app` は「`app.py` というファイルの中にある `app` という名前のFlaskアプリを使う」という指定です。
 
 **期待される結果**:ブラウザで `http://127.0.0.1:5001` を開くと `Hello, World!` が表示される。
 ターミナルには `"GET / HTTP/1.1" 200` というログが出ます。これがリクエストの記録です。
@@ -138,7 +150,7 @@ def about():
 
 ### Step 4. フォームからTodoを追加する
 
-`index.html` にフォームを追加し、`POST /todos` を受け取る関数を作ります。
+`index.html` にフォームを追加し、`POST /todos` を受け取る関数を作ります。`POST` を使うのは、「データを追加する」という変化を伴う操作だからです(GETは本来、データを取得するだけの操作に使います)。
 
 ```python
 from flask import redirect, request, url_for
@@ -151,11 +163,47 @@ def create():
     return redirect(url_for("index"))
 ```
 
+> **やってみよう**:試しに最後の行を `return redirect(url_for("index"))` から `return render_template("index.html", todos=todos)` に変えて、Todoを追加した直後にブラウザを再読み込み(`command + R`)してみましょう。同じTodoが二重に追加されることを確認できます(これが2-4で説明したPRGパターンが必要な理由です)。確認したら `redirect` に戻しておきます。
+
 ### Step 5. 編集・削除を実装する
 
-- 編集:`GET /todos/<id>/edit` で編集画面を表示し、`POST` で更新する
-- 削除:`POST /todos/<id>/delete` で削除する
-- 存在しないIDの場合は `abort(404)` で404を返す
+まず、IDを指定してTodoを探す共通処理を用意します。見つからなければ **404(ページが見つからない)** を返して処理を止めます。
+
+```python
+from flask import abort
+
+def find_todo(todo_id):
+    for todo in todos:
+        if todo["id"] == todo_id:
+            return todo
+    abort(404)   # ここで処理を止め、404ページを返す
+```
+
+`<int:todo_id>` のように、URLの一部を変数として受け取ることを **動的ルーティング** と呼びます。編集ページは「画面の表示(GET)」と「更新の実行(POST)」を同じURLで行うため、1つの関数の中で `request.method` によって処理を分けます。
+
+```python
+@app.route("/todos/<int:todo_id>/edit", methods=["GET", "POST"])
+def edit(todo_id):
+    todo = find_todo(todo_id)
+    if request.method == "POST":
+        title = request.form.get("title", "").strip()
+        if title:
+            todo["title"] = title
+        return redirect(url_for("index"))
+    return render_template("edit.html", todo=todo)
+```
+
+`templates/edit.html` を作成し、`index.html` と同じ要領で、現在のタイトルを初期値に入れたフォームを作ります(完成例:[sample/templates/edit.html](sample/templates/edit.html))。
+
+削除も同じ考え方で実装します。
+
+```python
+@app.route("/todos/<int:todo_id>/delete", methods=["POST"])
+def delete(todo_id):
+    todo = find_todo(todo_id)
+    todos.remove(todo)
+    return redirect(url_for("index"))
+```
 
 完成例:[sample/app.py](sample/app.py)
 
@@ -166,8 +214,8 @@ def create():
 開発者ツールのNetworkタブを開いた状態でTodoを追加し、以下を確認します。
 
 1. `todos` へのリクエストのメソッドが **POST**、ステータスが **302** であること
-2. **Payload** タブに `title` が送られていること
-3. その直後に `/` への **GET** が発生していること
+2. **Payload** タブ(そのリクエストで実際に送られたデータの中身を確認できる場所)に `title` が送られていること
+3. その直後に `/` への **GET** が発生していること(これがPRGパターンの「Redirect → GET」にあたります)
 
 ### Step 7. ポート番号を変えてみる
 
@@ -177,10 +225,10 @@ flask --app app run --debug --port 8080
 
 **期待される結果**:`http://127.0.0.1:8080` で表示され、`5001` では表示されない。
 
-5000番で起動するとどうなるかも試してみましょう(2-5 の注記)。
+5000番で起動するとどうなるかも試してみましょう(2-5 の注記)。`lsof` は「どのプログラムがどのポートやファイルを使っているか」を調べるコマンドです。
 
 ```bash
-lsof -i :5000   # 5000番を使っているプログラムを調べる(ControlCe = AirPlay)
+lsof -i :5000   # 5000番を使っているプログラムを調べる(Macでは ControlCenter = AirPlay が使っている)
 ```
 
 ### Step 8. コミットする
@@ -222,8 +270,8 @@ sample/
 
 ```bash
 cd sample
-python3.12 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+uv venv --python 3.12 && source .venv/bin/activate
+uv pip install -r requirements.txt
 flask --app app run --debug --port 5001
 ```
 

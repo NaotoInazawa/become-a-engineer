@@ -6,7 +6,7 @@
 
 - フェーズ6では、VMにPython・ライブラリ・設定を **手作業で** 1つずつ準備しました。手順が多く、1つ間違えると動きませんでした
 - 「自分のPCでは動くのに、サーバーや他の人のPCでは動かない」という問題は、Pythonのバージョンやライブラリ、OSの違いから起きます
-- 本番で使われることの多い **PostgreSQL** を使いたいが、PCに直接インストールして環境を汚したくない
+- 本番で使われることの多い **PostgreSQL**(多くの企業で使われる本格的なデータベースソフト)を使いたいが、PCに直接インストールして環境を汚したくない
 - **Docker** を使うと、アプリと実行環境を「箱(コンテナ)」に詰めて、どこでも同じように動かせます
 
 ## 2. 仕組みの解説
@@ -30,6 +30,8 @@ flowchart TB
     end
 ```
 
+**ハイパーバイザー** は、1台の物理マシンの中に複数の仮想的なマシン(VM)を作り出す、仕切り役のソフトです。マンションに例えると、VMは「1部屋ごとに建物(OS)をまるごと新築する」ような方式、コンテナは「同じ建物の中を間仕切りで分ける」ような方式です。間仕切りだけで済む分、コンテナは軽くて速いのです。
+
 | | VM(フェーズ6) | コンテナ |
 | --- | --- | --- |
 | 中身 | OSを丸ごと持つ | アプリと必要なライブラリだけ |
@@ -44,6 +46,8 @@ flowchart TB
 | **イメージ** | アプリと実行環境をまとめた「設計図」。読み取り専用 | レシピ・型 |
 | **コンテナ** | イメージから起動した「実体」。何個でも作れる | 型から作ったお菓子 |
 | **Dockerfile** | イメージの作り方を書いたファイル | レシピの手順書 |
+
+お菓子作りに例えると、Dockerfileは「レシピ」、イメージは「レシピから作った型」、コンテナは「その型から出来上がったお菓子」です。同じ型(イメージ)があれば、何個でも同じお菓子(コンテナ)を作れます。
 
 ### 2-3. Dockerfile は「フェーズ6の手順書」をコードにしたもの
 
@@ -68,9 +72,11 @@ flowchart LR
 
 > フェーズ6では gunicorn を `127.0.0.1` で待ち受けましたが、コンテナでは `0.0.0.0` で待ち受けます。コンテナの外(ホストPC)から届くリクエストを受け付ける必要があるためです。外部に公開するかどうかは、ポートマッピングで制御します。
 
+> **よくある勘違い**:`-p 8080:80` の順番は **「ホストの番号:コンテナの番号」** です。左右を逆にすると、意図したポートにつながりません。覚え方は「外側(ホスト)が左、内側(コンテナ)が右」です。
+
 ### 2-5. ボリューム
 
-コンテナを削除すると、コンテナの中で作られたファイルも消えます。DBのデータのように残したいものは、**ボリューム**(コンテナの外の保存領域)に保存します。
+コンテナを削除すると、コンテナの中で作られたファイルも消えます。USBメモリや外付けハードディスクのように、コンテナの外に置いておけば、コンテナを作り直しても消えない保管庫が **ボリューム** です。DBのデータのように残したいものは、ボリュームに保存します。
 
 ### 2-6. Docker Compose
 
@@ -79,7 +85,8 @@ Compose で起動したコンテナ同士は、**サービス名**(`db` など)�
 
 ### 2-7. 環境変数による設定の切り替え
 
-同じコードを、開発ではSQLite、Docker ではPostgreSQL、本番ではクラウドのDBにつなげるため、接続先を **環境変数 `DATABASE_URL`** で渡します。
+**環境変数** とは、プログラムの外側からOSを通じて渡す設定値のことで、フェーズ5の `SECRET_KEY` と同じ仕組みです。海外旅行で使うコンセントの変換プラグのように、同じアプリのコードでも、差し込む先(接続先)を環境ごとに切り替えられます。
+同じコードを、開発ではSQLite、Docker ではPostgreSQL、本番ではクラウドのDBにつなげるため、接続先を環境変数 **`DATABASE_URL`** で渡します。
 
 ```python
 SQLALCHEMY_DATABASE_URI=os.environ.get("DATABASE_URL", "sqlite:///todo.db")
@@ -114,9 +121,16 @@ docker run --rm -p 8080:80 nginx
 
 ### Step 3. アプリを PostgreSQL に対応させる
 
+DBの種類を変える大きめの変更なので、専用のブランチで作業します。
+
 ```bash
 git switch -c feature/docker
-pip install "psycopg[binary]"
+```
+
+PythonからPostgreSQLに接続するには、専用の橋渡し役となるライブラリ(**ドライバ**)が必要です。`psycopg` はPythonでPostgreSQLを扱うときの定番ライブラリです。
+
+```bash
+uv pip install "psycopg[binary]"
 ```
 
 - `requirements.txt` に `psycopg[binary]` を追加する
@@ -124,7 +138,51 @@ pip install "psycopg[binary]"
 
 ### Step 4. Dockerfile を書く
 
-[sample/Dockerfile](sample/Dockerfile) と [sample/.dockerignore](sample/.dockerignore) を作成します。2-3 の表と見比べながら、各行がフェーズ6のどの作業に当たるかを確認しましょう。
+`Dockerfile` に、イメージの作り方を1行ずつ書いていきます。2-3 の表と見比べながら、各行がフェーズ6のどの作業に当たるかを確認しましょう。
+
+まず、土台となるPythonと作業フォルダを用意します。
+
+```dockerfile
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
+WORKDIR /app
+```
+
+- `FROM`:どのイメージを土台にするかを指定します。`python:3.12-slim`は、Python 3.12が最初から入った軽量なLinuxです
+- `WORKDIR`:これ以降のコマンドを実行する、コンテナ内の作業フォルダを指定します
+
+次に、ライブラリをインストールします。
+
+```dockerfile
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+```
+
+`requirements.txt`だけを先にコピーしてインストールしているのには理由があります。Dockerは「前回から変わっていない行」の結果を使い回す(**キャッシュ**)仕組みを持っています。アプリのコード(`COPY . .`)はよく変わりますが、依存ライブラリ(`requirements.txt`)はあまり変わりません。先にライブラリだけをコピー・インストールしておけば、コードを1行変えただけのときにライブラリの再インストールを省略でき、ビルドが速くなります。
+
+最後に、実行時の設定をします。
+
+```dockerfile
+RUN useradd --create-home appuser && chown -R appuser /app
+USER appuser
+
+EXPOSE 8000
+
+CMD ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:8000", "wsgi:app"]
+```
+
+- `RUN useradd ... && chown ...` と `USER appuser`:管理者権限を持つ`root`ユーザーのままアプリを動かすと、もし脆弱性を突かれたときの被害が大きくなります。そのため一般ユーザー(`appuser`)を作り、そのユーザーとしてアプリを動かします
+- `EXPOSE`:このコンテナが何番のポートを使うつもりかを示す、ドキュメント的な記述です(実際にポートを公開するかはStep5の`-p`オプションで決まります)
+- `CMD`:コンテナが起動したときに実行するコマンドです。`8000`番で待ち受けさせます(フェーズ11でこのポート番号に合わせてクラウド側の設定を行います)
+
+[sample/Dockerfile](sample/Dockerfile) が完成形です。
+
+`.dockerignore` も作成します(例:[sample/.dockerignore](sample/.dockerignore))。`.gitignore` と同じ考え方のファイルです。`.gitignore` がGitの管理対象から外すのに対し、`.dockerignore` は **イメージに含めないファイル**(`.venv/` など)を指定します。不要なファイルが入らないため、イメージが軽くなり、ビルドも速くなります。
 
 ### Step 5. イメージをビルドしてコンテナで起動する
 
@@ -140,7 +198,54 @@ docker run --rm -p 8000:8000 --env-file .env my-todo-app
 
 ### Step 6. Docker Compose でアプリと PostgreSQL を起動する
 
-[sample/compose.yaml](sample/compose.yaml) を作成し、起動します。
+`compose.yaml` に、`web`(アプリ)と `db`(PostgreSQL)という2つのコンテナの設定をまとめて書きます。
+
+```yaml
+services:
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://todo:todo@db:5432/todo
+    depends_on:
+      db:
+        condition: service_healthy
+```
+
+- `build: .`:このフォルダの`Dockerfile`からイメージをビルドして使う、という意味です
+- `env_file`:`.env`の中身を、そのままコンテナの環境変数として渡します
+- `environment`:接続先のホスト名が`db`になっているのは、2-6で説明した「サービス名がそのままホスト名になる」という仕組みを使っているためです
+- `depends_on` と `condition: service_healthy`:ただ「先に起動する」だけでは不十分です。PostgreSQLは起動を開始してから接続を受け付けられるようになるまで少し時間がかかるため、「`db`が**起動完了した**(ヘルスチェックに成功した)のを待ってから`web`を起動する」という指定です
+
+続けて、`db`の設定を書きます。
+
+```yaml
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: todo
+      POSTGRES_PASSWORD: todo
+      POSTGRES_DB: todo
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U todo -d todo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:
+```
+
+- `image: postgres:16`:自分でDockerfileを書かず、公式に配布されているPostgreSQLのイメージをそのまま使います
+- `healthcheck`:「このコンテナが本当に使える状態か」を定期的に確認する設定です。`pg_isready`はPostgreSQLに同梱されているコマンドで、接続可能になったかを教えてくれます。これが成功して初めて、上の`depends_on`の条件が満たされます
+- `volumes`:2-5で説明したボリュームです。コンテナを削除してもデータが残るよう、DBのデータだけは外部に保存します
+
+[sample/compose.yaml](sample/compose.yaml) が完成形です。書けたら起動します。
 
 ```bash
 docker compose up --build

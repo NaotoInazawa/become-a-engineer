@@ -1,0 +1,70 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Hiragino Sans", "Noto Sans JP", sans-serif;
+  line-height: 1.7;
+  color: #333;
+  background-color: #f5f7fa;
+}
+
+.header {
+  padding: 24px 16px;
+  background-color: #2b6cb0;
+}
+
+.logo {
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.container {
+  max-width: 640px;
+  margin: 32px auto;
+  padding: 0 16px;
+}
+
+.add-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.add-form input {
+  flex: 1;
+  padding: 8px;
+}
+
+.todo-list {
+  list-style: none;
+  padding: 0;
+}
+
+.todo-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: #fff;
+  border-radius: 8px;
+  margin-bottom: 8px;
+}
+
+.todo-item .title {
+  flex: 1;
+}
+
+.inline {
+  display: inline;
+}
+
+.danger {
+  color: #c53030;
+}
+
+.empty {
+  color: #777;
+}

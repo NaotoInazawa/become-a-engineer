@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}Todo(JavaScript版){% endblock %}
+
+{% block content %}
+<h1>Todo一覧(JavaScript版)</h1>
+<p class="empty">この画面は、ページを再読み込みせずに <code>/api/todos</code> とJSONでやり取りしています。</p>
+
+<form id="add-form" class="add-form">
+  <input type="text" id="title-input" placeholder="やることを入力" maxlength="100" required>
+  <button type="submit">追加</button>
+</form>
+
+<p id="error" class="flash" hidden></p>
+<ul id="todo-list" class="todo-list"></ul>
+<p id="empty" class="empty" hidden>Todoはまだありません。</p>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

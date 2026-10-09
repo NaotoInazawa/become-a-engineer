@@ -21,9 +21,11 @@ flowchart TB
     E2E --- INT --- UNIT
 ```
 
-下にあるほど速く・壊れにくく・数を多く書きます(**テストピラミッド**)。このフェーズでは、Flaskのテストクライアントを使ってリクエストを送る **結合テスト** を中心に書きます。
+下にあるほど速く・壊れにくく・数を多く書きます(**テストピラミッド**)。車の品質チェックに例えると、部品1つの検査(単体テスト)→ 部品を組み合わせた動作確認(結合テスト)→ 実際に公道を走らせる確認(E2E)のようなイメージです。公道を走らせる確認ほど本物に近い分、時間もコストもかかります。このフェーズでは、Flaskのテストクライアント(ブラウザの代わりにリクエストを送ってくれる道具)を使ってリクエストを送る **結合テスト** を中心に書きます。
 
 ### 2-2. テストケースの考え方
+
+**テストケース**とは、「こういう操作をしたら、こうなるはず」という確認項目を1つずつ書き出したものです。思いつきで確認すると漏れが出やすいため、先に表にまとめておきます。
 
 | 観点 | 内容 | 例 |
 | --- | --- | --- |
@@ -36,6 +38,8 @@ flowchart TB
 
 ### 2-3. テストの基本形(AAA)
 
+テストのコードは、毎回「準備→実行→確認」という同じ3段階で書くと、あとで読む人(未来の自分を含む)が内容を追いやすくなります。この型を **AAA** と呼びます。
+
 ```python
 def test_create_todo(logged_in_client):
     # Arrange(準備):ログイン済みのクライアントを用意(フィクスチャ)
@@ -45,18 +49,22 @@ def test_create_todo(logged_in_client):
     assert "牛乳" in response.get_data(as_text=True)
 ```
 
+- **Arrange(準備)**:テストに必要な状態を整える
+- **Act(実行)**:確認したい処理を1つ実行する
+- **Assert(確認)**:`assert`(〜のはずだと断言する、という意味の英単語)を使い、結果が期待どおりかを確認する。`assert` の後ろの条件が `False` だとテストは失敗する
+
 ### 2-4. テスト用DBとフィクスチャ
 
 テストで本番のデータベースを使うと、データが汚れたり、前のテストの結果に影響されたりします。
-**フィクスチャ** は、テストごとに「まっさらな環境」を準備して後片付けする仕組みです。このアプリでは、テストのたびに **メモリ上の空のDB** を作ります。
+**フィクスチャ** は、テストごとに「まっさらな環境」を準備して後片付けする仕組みです。理科の実験で使うビーカーを、実験のたびに洗って使うようなものだとイメージしてください。前の実験の薬品が残っていると結果が狂うように、前のテストのデータが残っていると結果が正しく確認できません。このアプリでは、テストのたびに **メモリ上の空のDB** を作ります。
 
 ### 2-5. テストしやすい構造に変える(アプリファクトリ・Blueprint)
 
 フェーズ6までの `app.py` は、読み込んだ瞬間に本番用のDB(`todo.db`)につながってしまうため、テスト用のDBに切り替えられません。
 そこで、次の2つのリファクタリング(動作を変えずにコードの構造を改善すること)を行います。
 
-- **アプリファクトリ**:`create_app()` 関数でアプリを組み立てる。呼び出すときに設定を渡せるので、テストでは別のDBを使える
-- **Blueprint**:機能ごと(認証・Todo)にファイルを分ける
+- **アプリファクトリ**:`create_app()` 関数でアプリを組み立てる。呼び出すときに設定を渡せるので、テストでは別のDBを使える。たい焼きの型のようなもので、同じ型(`create_app`)からでも、流し込む具材(設定)を変えれば、本番用・テスト用など違うたい焼き(アプリ)を何個でも作れます
+- **Blueprint**(ブループリント。「設計図」という意味の英単語):機能ごと(認証・Todo)にファイルを分ける仕組み。1つの `app.py` に全部書くのではなく、担当ごとに分かれた設計図を1つのアプリに組み込みます
 
 ```
 フェーズ6                     フェーズ7
@@ -73,7 +81,7 @@ app.py(すべて)        →     todo_app/
 
 ### 2-6. カバレッジ
 
-テストで **どれだけのコードが実行されたか** の割合です。低すぎる場合はテスト漏れのサインですが、**100%を目指すこと自体が目的ではありません**。重要な処理(認可など)がテストされているかを重視します。
+テストで **どれだけのコードが実行されたか** の割合です。地図でいうと、「街のどこまで実際に歩いて確認したか」を塗りつぶした地図のようなものです。塗られていない道(実行されていないコード)がどこにあるかが一目でわかります。低すぎる場合はテスト漏れのサインですが、**100%を目指すこと自体が目的ではありません**。重要な処理(認可など)がテストされているかを重視します。
 
 ### 2-7. ブランチとプルリクエスト
 
@@ -89,13 +97,15 @@ gitGraph
     merge feature/test id: "PRをマージ"
 ```
 
-- **ブランチ**:`main` から枝分かれした作業用の線。`main` に影響を与えずに作業できる
+- **ブランチ**:`main` から枝分かれした作業用の線。`main` に影響を与えずに作業できる。小説の下書きを、本編とは別の原稿用紙に書くようなものです。下書きがうまくいかなくても、本編(`main`)はそのまま安全に残ります
 - **プルリクエスト(PR)**:「このブランチの変更を `main` に取り込んでください」という依頼。差分を確認し、レビューしてからマージする
 - **コンフリクト**:同じ箇所を別々のブランチで変更したときに起きる衝突。どちらを残すかを人が決める
 
 ## 3. ハンズオン
 
 ### Step 1. 作業用ブランチを作る
+
+このあと `main` のコードを大きく変更(リファクタリング)するため、動いている `main` を直接壊さないよう、まず作業用のブランチを作ります。
 
 ```bash
 git switch -c feature/add-tests
@@ -111,28 +121,111 @@ git switch -c feature/add-tests
 
 2-5 の構成に合わせて、`app.py` を `todo_app/` パッケージに分割します。完成例:[sample/todo_app/](sample/todo_app/)
 
+まず `todo_app/extensions.py` に、`db` と `login_manager` を **`create_app()` の外側** で作っておきます。
+
+```python
+# todo_app/extensions.py
+from flask_login import LoginManager
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+login_manager = LoginManager()
+login_manager.login_view = "auth.login"
+```
+
+フェーズ4〜6では `db = SQLAlchemy(app)` のように、`db` を作るときに `app` を渡していました。これだと `app` が1つに決まっていないと `db` が作れません。
+ここでは逆に、`db = SQLAlchemy()` で **中身が空の状態** で先に作っておき、あとから `db.init_app(app)` で好きな `app` に結び付けます。こうすることで、「本番用の `app`」「テスト用の `app`」をいくつでも後から作って同じ `db` の仕組みを使い回せます。
+
+次に `todo_app/__init__.py` に、`create_app()` 関数を作ります。
+
+```python
+# todo_app/__init__.py
+from flask import Flask
+
+from .extensions import db, login_manager
+
+
+def create_app(test_config=None):
+    app = Flask(__name__)
+    app.config.from_mapping(
+        SECRET_KEY="...",
+        SQLALCHEMY_DATABASE_URI="sqlite:///todo.db",
+    )
+    if test_config is not None:
+        app.config.update(test_config)   # テストのときだけ設定を上書きする
+
+    db.init_app(app)                     # ここで db とこの app を結び付ける
+    login_manager.init_app(app)
+
+    from . import auth, todos            # Blueprint を読み込んで登録する
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(todos.bp)
+
+    with app.app_context():
+        db.create_all()
+
+    return app
+```
+
+`test_config` という引数がポイントです。何も渡さなければ本番用の設定のまま、テストのときだけ `create_app({"SQLALCHEMY_DATABASE_URI": "sqlite://"})` のように渡せば、**本番のデータに触れずに** 同じアプリの仕組みをテストできます(実際にテストから呼び出す様子はStep5で見ます)。
+
 - テンプレート内の `url_for('index')` は `url_for('todos.index')` のように、Blueprint名を付けて書き換えます
 - `templates/` と `static/` は `todo_app/` の中に移動します
 
-起動方法が変わります。
+これまでは `flask --app app` のように、ファイル名(`app.py`)を指定して起動していました。パッケージ化したことで、`todo_app` フォルダの中の `create_app()` を呼び出す形に変わります。起動方法もそれに合わせて変わります。
 
 ```bash
 flask --app todo_app run --debug --port 5001
 ```
 
-**期待される結果**:リファクタリング前と同じように、すべての機能が動く。
+**期待される結果**:リファクタリング前と同じように、すべての機能が動く。見た目や動きは変えずに内部の構造だけを整理することを **リファクタリング** と呼びます。
 
 ### Step 4. pytestをインストールする
 
+テストを自分で1から作る必要はありません。Pythonでは **pytest** というテスト専用のライブラリを使うのが定番です。`pytest-cov` は、2-6で説明したカバレッジを測るための追加機能です。
+
 ```bash
-pip install pytest pytest-cov
+uv pip install pytest pytest-cov
 ```
 
-開発でだけ使うライブラリは、`requirements-dev.txt` に分けて記録します(例:[sample/requirements-dev.txt](sample/requirements-dev.txt))。
+開発でだけ使うライブラリは、`requirements-dev.txt` に分けて記録します(例:[sample/requirements-dev.txt](sample/requirements-dev.txt))。本番のサーバーにはテスト用のライブラリは不要なので、通常の `requirements.txt` とはファイルを分けます。
 
 ### Step 5. フィクスチャを書く
 
-[sample/tests/conftest.py](sample/tests/conftest.py) を作成します。テスト用のアプリ・クライアント・ログイン済みクライアントを用意します。
+`tests/conftest.py` を作成します。**フィクスチャ** は `@pytest.fixture` を付けた関数で、「準備 → `yield`(ここでテスト本体が実行される)→ 後片付け」という形で書きます。
+
+```python
+# tests/conftest.py
+import pytest
+
+from todo_app import create_app
+from todo_app.extensions import db
+
+
+@pytest.fixture
+def app():
+    """テスト用のアプリ。DBはメモリ上(sqlite://)に作るので、本番のデータを汚さない。"""
+    app = create_app({
+        "TESTING": True,
+        "SECRET_KEY": "test",
+        "SQLALCHEMY_DATABASE_URI": "sqlite://",
+    })
+    yield app   # ここでテスト関数が実行される
+    with app.app_context():
+        db.drop_all()   # テストが終わったら後片付け
+
+
+@pytest.fixture
+def client(app):
+    """ブラウザの代わりにリクエストを送るテスト用クライアント"""
+    return app.test_client()
+```
+
+`yield` の前が「準備(Arrange)」、`yield` の後が「後片付け」にあたります。テスト関数の引数に `client` と書くだけで、pytestが自動的にこの `client` フィクスチャを探して渡してくれます(`app`フィクスチャも同様に、`client`の中で自動的に解決されます)。
+
+[sample/tests/conftest.py](sample/tests/conftest.py) には、これに加えて「ユーザー登録済み・ログイン済みのクライアント」を作る `logged_in_client` フィクスチャもあります。あわせて参考にしてください。
+
+> **よくある勘違い**:`conftest.py` は、必ず `tests/` フォルダの直下に置いてください。名前や場所を間違えると、pytestが自動で読み込んでくれず、`fixture 'client' not found` のようなエラーになります。
 
 ### Step 6. テストを書いて実行する
 
@@ -141,6 +234,8 @@ pip install pytest pytest-cov
 ```bash
 pytest -v
 ```
+
+`-v` は verbose(詳細)の略で、実行した各テストの名前と結果(PASSED/FAILED)を1件ずつ表示するオプションです。
 
 **期待される結果**:すべてのテストが `PASSED` になる。
 

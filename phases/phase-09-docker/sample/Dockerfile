@@ -27,5 +27,4 @@ EXPOSE 8000
 
 # ===== 起動コマンド =====
 # コンテナの外(ホストPC)から接続できるよう、0.0.0.0 で待ち受ける。
-# PORT 環境変数があればそのポートを使う(フェーズ11の Cloud Run で使用)
-CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --bind 0.0.0.0:${PORT:-8000} wsgi:app"]
+CMD ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:8000", "wsgi:app"]

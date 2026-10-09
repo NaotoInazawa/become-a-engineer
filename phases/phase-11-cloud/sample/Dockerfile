@@ -22,10 +22,15 @@ COPY . .
 RUN useradd --create-home appuser && chown -R appuser /app
 USER appuser
 
+# ===== Lambda Web Adapter(フェーズ11)=====
+# Lambda上でこのコンテナを「普通のWebサーバー」として動かすための変換アダプター。
+# ローカルやDocker Composeで動かす分にはこの2行がなくても無視されるだけで、影響はない。
+COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:0.9.1 /lambda-adapter /opt/extensions/lambda-adapter
+ENV AWS_LWA_PORT=8000
+
 # このコンテナが待ち受けるポート(ドキュメント的な意味)
 EXPOSE 8000
 
 # ===== 起動コマンド =====
 # コンテナの外(ホストPC)から接続できるよう、0.0.0.0 で待ち受ける。
-# PORT 環境変数があればそのポートを使う(フェーズ11の Cloud Run で使用)
-CMD ["sh", "-c", "gunicorn --workers 1 --threads 4 --bind 0.0.0.0:${PORT:-8000} wsgi:app"]
+CMD ["gunicorn", "--workers", "1", "--threads", "4", "--bind", "0.0.0.0:8000", "wsgi:app"]

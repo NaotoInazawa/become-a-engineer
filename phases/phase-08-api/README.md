@@ -109,11 +109,68 @@ GitHubやX(旧Twitter)などをChromeで開き、開発者ツール(`command + o
 
 `todo_app/api.py` を作成し、2-2 の5つのエンドポイントを実装します。完成例:[sample/todo_app/api.py](sample/todo_app/api.py)
 
-ポイント:
+これまでの画面(`todos.py`)は `@login_required` を使い、未ログインならログイン画面にリダイレクトしていました。APIでは、JavaScript側が困らないように「リダイレクト」ではなく **401というステータスコードをJSONで返す**必要があります。そのための専用の目印(**デコレーター**:関数の前に `@名前` と書いて、その関数に処理を追加する仕組み)を自分で作ります。
 
-- `jsonify()` で辞書やリストをJSONにして返す
-- 未ログインのときは、ログイン画面へのリダイレクトではなく **401** を返す
-- エラーもJSONで返す(`@bp.errorhandler`)
+```python
+from functools import wraps
+
+from flask import Blueprint, abort, jsonify, request
+from flask_login import current_user
+
+from .extensions import db
+from .models import Todo
+
+bp = Blueprint("api", __name__, url_prefix="/api")
+
+
+def api_login_required(view):
+    """未ログインのときに、ログイン画面へリダイレクトせず401(JSON)を返す"""
+
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        if not current_user.is_authenticated:
+            abort(401)
+        return view(*args, **kwargs)
+
+    return wrapped
+
+
+def todo_to_dict(todo):
+    """Todo(モデルのオブジェクト)を、JSONにできる辞書に変換する"""
+    return {
+        "id": todo.id,
+        "title": todo.title,
+        "done": todo.done,
+        "created_at": todo.created_at.isoformat(),
+    }
+
+
+@bp.get("/todos")
+@api_login_required
+def list_todos():
+    """一覧を取得する:GET /api/todos"""
+    todos = (
+        db.session.execute(
+            db.select(Todo).filter_by(user_id=current_user.id).order_by(Todo.id)
+        )
+        .scalars()
+        .all()
+    )
+    return jsonify([todo_to_dict(todo) for todo in todos])
+```
+
+`@wraps(view)` は、デコレーターを作るときのお約束です(付けないと、Flaskがエンドポイントの名前を正しく認識できずエラーになることがあります)。`list_todos()` の中身自体は、これまでの `todos.py` の一覧取得とほぼ同じで、違うのは `render_template(...)` の代わりに `jsonify(...)` でJSONを返している点です。
+
+残り4つのエンドポイント(追加・1件取得・更新・削除)も、同じ `@api_login_required` を付けて作ります。
+
+| メソッド | URL | 関数名 | やること |
+| --- | --- | --- | --- |
+| POST | `/api/todos` | `create_todo` | `request.get_json()` でJSONを受け取り、追加して `201` を返す |
+| GET | `/api/todos/<id>` | `get_todo` | 自分のTodoなら返す。他人のなら `403` |
+| PUT | `/api/todos/<id>` | `update_todo` | タイトルや完了状態を更新する |
+| DELETE | `/api/todos/<id>` | `delete_todo` | 削除して `204`(本文なし)を返す |
+
+エラーもJSONで返すため、`@bp.errorhandler` を使います。詳しくは完成例を参照してください。
 
 `todo_app/__init__.py` で Blueprint を登録します。
 
@@ -149,6 +206,44 @@ curl -b cookies.txt -X DELETE -i http://127.0.0.1:5001/api/todos/1
 
 1. `todo_app/templates/app.html` を作成し、`/app` で表示する(完成例:[sample/todo_app/templates/app.html](sample/todo_app/templates/app.html))
 2. `todo_app/static/app.js` で、一覧取得・追加・完了切り替え・削除を実装する(完成例:[sample/todo_app/static/app.js](sample/todo_app/static/app.js))
+
+2-3 で見た `fetch` はGETの例だけでした。ここでは、JSONを **送る** POSTと、送った後に **画面を書き換える** 処理を組み合わせます。追加処理を例に見てみましょう。
+
+```javascript
+const API_URL = "/api/todos";
+const list = document.querySelector("#todo-list");
+
+function createTodoElement(todo) {
+  const li = document.createElement("li");
+  const title = document.createElement("span");
+  title.textContent = todo.title;   // XSS対策(2-6参照):innerHTMLではなくtextContentを使う
+  li.append(title);
+  return li;
+}
+
+async function loadTodos() {
+  const response = await fetch(API_URL);
+  const todos = await response.json();
+  list.replaceChildren(...todos.map(createTodoElement));
+}
+
+async function addTodo(title) {
+  await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+  await loadTodos();
+}
+
+loadTodos();
+```
+
+- `document.createElement("li")`:HTMLタグを、画面に表示する前にJavaScript側で組み立てる方法です
+- `list.replaceChildren(...)`:`list` の中身をまるごと新しい要素に差し替えます
+- `method: "POST"` と `body: JSON.stringify(...)`:GET以外のリクエストでは、どんな操作か(`method`)と送るデータ(`body`)を指定します
+
+完成例の [sample/todo_app/static/app.js](sample/todo_app/static/app.js) には、これに加えて共通の `request()` 関数・完了切り替え・削除・フォーム送信時の処理があります。同じ考え方の繰り返しなので、見比べながら実装してみましょう。
 
 **期待される結果**:`http://127.0.0.1:5001/app` でTodoを追加すると、**ページが再読み込みされずに** 一覧が更新される。Networkタブで `api/todos` へのリクエストを確認しましょう。
 
